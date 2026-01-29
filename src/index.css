@@ -1,0 +1,204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Executive Dashboard Design System
+   Visual: Clean, analytical, professional
+   Colors: Neutral slate palette with blue accents
+   All colors MUST be HSL.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Main surfaces */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    /* Cards and elevated surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    /* Popovers and dropdowns */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary brand color - Executive blue */
+    --primary: 217 91% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary surfaces */
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted elements */
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent highlights */
+    --accent: 217 91% 95%;
+    --accent-foreground: 217 91% 40%;
+
+    /* Destructive/Error states */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success states */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning states */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 50%;
+
+    /* Chart colors */
+    --chart-1: 217 91% 50%;
+    --chart-2: 262 80% 50%;
+    --chart-3: 160 84% 39%;
+    --chart-4: 280 85% 44%;
+    --chart-5: 33 93% 50%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar - Dark executive theme */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 18%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 222 47% 20%;
+    --sidebar-ring: 217 91% 60%;
+    --sidebar-muted: 215 16% 55%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.07), 0 2px 4px -2px hsl(222 47% 11% / 0.07);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.08), 0 4px 6px -4px hsl(222 47% 11% / 0.08);
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 20% 98%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 217 91% 65%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 222 47% 15%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 222 47% 15%;
+    --muted-foreground: 215 16% 65%;
+
+    --accent: 217 91% 30%;
+    --accent-foreground: 217 91% 80%;
+
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 0% 10%;
+
+    /* Chart colors - More vibrant for dark theme */
+    --chart-1: 217 91% 70%;
+    --chart-2: 262 80% 65%;
+    --chart-3: 160 84% 55%;
+    --chart-4: 280 85% 60%;
+    --chart-5: 33 93% 65%;
+
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 217 91% 65%;
+
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 217 91% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 47% 12%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 222 47% 15%;
+    --sidebar-ring: 217 91% 65%;
+    --sidebar-muted: 215 16% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .executive-card {
+    @apply bg-card rounded-lg border shadow-sm transition-shadow duration-200;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .executive-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  .executive-card-elevated {
+    @apply bg-card rounded-lg border transition-all duration-200;
+    box-shadow: var(--shadow-md);
+  }
+
+  .executive-card-elevated:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+  }
+
+  .grid-executive {
+    @apply grid gap-8;
+    grid-template-columns: repeat(12, 1fr);
+  }
+
+  /* Smooth page transitions */
+  .animate-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Chart container improvements */
+  .recharts-wrapper {
+    @apply transition-opacity duration-200;
+  }
+
+  /* Table row hover */
+  .executive-table-row:hover {
+    @apply bg-muted/50;
+  }
+
+  /* Filter highlight */
+  .filter-active {
+    @apply ring-2 ring-primary/20;
+  }
+}
