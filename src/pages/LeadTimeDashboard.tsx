@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { useFilters } from '@/contexts/FilterContext';
+import { getOpenVersionsAndFilterIssues } from '@/lib/version-utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Clock, BarChart3, Timer } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -129,7 +130,10 @@ export default function LeadTimeDashboard() {
         return;
       }
 
-      if (!issues || issues.length === 0) {
+      // Filtrar versões em aberto
+      const { filteredIssues } = await getOpenVersionsAndFilterIssues(issues || []);
+
+      if (!filteredIssues || filteredIssues.length === 0) {
         setKpis({ avgLeadTime: 0, medianLeadTime: 0, p90LeadTime: 0 });
         setSystemData([]);
         setMonthlyData([]);
@@ -161,7 +165,7 @@ export default function LeadTimeDashboard() {
 
       // Lead time by system
       const systemMap = new Map<string, number[]>();
-      issues.forEach(issue => {
+      filteredIssues.forEach(issue => {
         if (issue.lead_time_days && issue.lead_time_days > 0) {
           const system = issue.system || 'Não definido';
           if (!systemMap.has(system)) {
@@ -181,7 +185,7 @@ export default function LeadTimeDashboard() {
 
       // Monthly trend - use resolved_date (delivery date)
       const monthlyMap = new Map<string, number[]>();
-      issues.forEach(issue => {
+      filteredIssues.forEach(issue => {
         if (issue.resolved_date && issue.lead_time_days && issue.lead_time_days > 0) {
           const monthKey = format(parseISO(issue.resolved_date), 'yyyy-MM');
           if (!monthlyMap.has(monthKey)) {

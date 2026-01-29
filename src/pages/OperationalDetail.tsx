@@ -58,6 +58,9 @@ export default function OperationalDetail() {
   const [maxLeadTime, setMaxLeadTime] = useState('');
   const [onlyBugs, setOnlyBugs] = useState(false);
   const [aboveAverage, setAboveAverage] = useState(false);
+  const [onlyOpenVersions, setOnlyOpenVersions] = useState(false);
+  const [onlyClosedVersions, setOnlyClosedVersions] = useState(true);
+  const [openVersionsList, setOpenVersionsList] = useState<string[]>([]);
 
   // Sorting
   const [sortField, setSortField] = useState<SortField>('lead_time_days');
@@ -66,40 +69,111 @@ export default function OperationalDetail() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Debug: monitorar mudanças no estado de versões em aberto
+  useEffect(() => {
+    console.log('🔄 Estado openVersionsList atualizado:', {
+      length: openVersionsList.length,
+      versões: openVersionsList
+    });
+  }, [openVersionsList]);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
+      console.log('🚀 Iniciando fetch de dados...');
 
-      let query = supabase
-        .from('issues')
-        .select('id, issue_key, summary, issue_type, status, system, fix_version, created_date, resolved_date, lead_time_days');
+      try {
+        // PASSO 1: Buscar todas as issues primeiro
+        let query = supabase
+          .from('issues')
+          .select('id, issue_key, summary, issue_type, status, system, fix_version, created_date, resolved_date, lead_time_days');
 
-      // Apply global filters
-      if (filters.dateStart) {
-        query = query.gte('resolved_date', format(filters.dateStart, 'yyyy-MM-dd'));
-      }
-      if (filters.dateEnd) {
-        query = query.lte('resolved_date', format(filters.dateEnd, 'yyyy-MM-dd'));
-      }
-      if (filters.system !== 'all') {
-        query = query.eq('system', filters.system);
-      }
-      if (filters.version !== 'all') {
-        query = query.eq('fix_version', filters.version);
-      }
-      if (filters.issueType !== 'all') {
-        query = query.eq('issue_type', filters.issueType);
-      }
+        // Apply global filters (EXCETO versão, pois queremos todas)
+        if (filters.dateStart) {
+          query = query.gte('resolved_date', format(filters.dateStart, 'yyyy-MM-dd'));
+        }
+        if (filters.dateEnd) {
+          query = query.lte('resolved_date', format(filters.dateEnd, 'yyyy-MM-dd'));
+        }
+        if (filters.system !== 'all') {
+          query = query.eq('system', filters.system);
+        }
+        if (filters.issueType !== 'all') {
+          query = query.eq('issue_type', filters.issueType);
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (error) {
-        console.error('Error fetching issues:', error);
-        setLoading(false);
-        return;
-      }
+        if (error) {
+          console.error('❌ Error fetching issues:', error);
+          setLoading(false);
+          return;
+        }
 
-      setIssues(data || []);
+        // PASSO 2: Extrair versões únicas das issues
+        const uniqueVersions = [...new Set(data?.map(i => i.fix_version).filter(Boolean))];
+        
+        console.log('📋 Versões únicas encontradas nas issues:', {
+          total: uniqueVersions.length,
+          versões: uniqueVersions.slice(0, 20)
+        });
+
+        // PASSO 3: Buscar descrições dessas versões
+        const { data: versionsData, error: versionsError } = await supabase
+          .from('versions')
+          .select('name, description')
+          .in('name', uniqueVersions);
+
+        console.log('📦 Descrições das versões do Supabase:', {
+          totalVersions: versionsData?.length || 0,
+          error: versionsError,
+          primeiras10: versionsData?.slice(0, 10)
+        });
+
+        if (versionsError) {
+          console.error('❌ Erro ao buscar versões:', versionsError);
+        }
+
+        // PASSO 4: Criar mapa de descrições
+        const versionsMap = new Map(
+          (versionsData || []).map(v => [v.name, v.description])
+        );
+
+        // PASSO 5: Identificar versões em aberto (sem descrição)
+        const openVersions = uniqueVersions.filter(versionName => {
+          const description = versionsMap.get(versionName);
+          return !description || description.trim() === '';
+        });
+        
+        console.log('✅ Versões em aberto detectadas:', {
+          total: openVersions.length,
+          versões: openVersions,
+          exemplos: openVersions.slice(0, 10).map(v => ({
+            name: v,
+            desc: versionsMap.get(v),
+            isOpen: true
+          }))
+        });
+        
+        // Atualizar estado com versões em aberto
+        setOpenVersionsList(openVersions);
+
+        // PASSO 6: Verificar quais issues pertencem a versões em aberto
+        const issuesInOpenVersions = data?.filter(i => 
+          i.fix_version && openVersions.includes(i.fix_version)
+        ) || [];
+
+        console.log('📊 Issues carregadas:', {
+          totalIssues: data?.length || 0,
+          issuesEmAbertas: issuesInOpenVersions.length,
+          versõesAbertas: openVersions.length,
+          exemplosIssuesAbertas: issuesInOpenVersions.slice(0, 10).map(i => ({
+            key: i.issue_key,
+            version: i.fix_version
+          }))
+        });
+
+        setIssues(data || []);
 
       // Calculate average and P90 lead time
       const leadTimes = (data || [])
@@ -115,7 +189,11 @@ export default function OperationalDetail() {
         setP90LeadTime(sorted[p90Index] || avg);
       }
 
-      setLoading(false);
+      } catch (error) {
+        console.error('❌ Erro geral ao buscar dados:', error);
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchData();
@@ -162,6 +240,39 @@ export default function OperationalDetail() {
       result = result.filter(issue => issue.lead_time_days && issue.lead_time_days > avgLeadTime);
     }
 
+    // Only open versions filter
+    if (onlyOpenVersions) {
+      console.log('🔍 Aplicando filtro "Em Aberto":', {
+        antes: result.length,
+        temVersõesEmAberto: openVersionsList.length > 0,
+        versõesAbertas: openVersionsList,
+        issuesAntesFiltro: result.slice(0, 3).map(i => ({ key: i.issue_key, version: i.fix_version }))
+      });
+      
+      if (openVersionsList.length > 0) {
+        result = result.filter(issue => 
+          issue.fix_version && openVersionsList.includes(issue.fix_version)
+        );
+        console.log('✅ Após filtro "Em Aberto":', {
+          depois: result.length,
+          issuesDepoisFiltro: result.slice(0, 5).map(i => ({ key: i.issue_key, version: i.fix_version }))
+        });
+      } else {
+        console.warn('⚠️ Nenhuma versão em aberto encontrada para filtrar!');
+      }
+    }
+
+    // Only closed versions filter (active by default)
+    if (onlyClosedVersions && openVersionsList.length > 0) {
+      result = result.filter(issue => 
+        !issue.fix_version || !openVersionsList.includes(issue.fix_version)
+      );
+      console.log('🔒 Filtro "Apenas Fechadas" aplicado:', {
+        issuesRestantes: result.length,
+        versõesRemovidasEmAberto: openVersionsList.length
+      });
+    }
+
     // Sorting
     result.sort((a, b) => {
       let aVal = a[sortField];
@@ -184,7 +295,7 @@ export default function OperationalDetail() {
     });
 
     return result;
-  }, [issues, searchTerm, minLeadTime, maxLeadTime, onlyBugs, aboveAverage, avgLeadTime, sortField, sortDirection]);
+  }, [issues, searchTerm, minLeadTime, maxLeadTime, onlyBugs, aboveAverage, onlyOpenVersions, onlyClosedVersions, openVersionsList, avgLeadTime, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedIssues.length / ITEMS_PER_PAGE);
@@ -226,6 +337,8 @@ export default function OperationalDetail() {
     setMaxLeadTime('');
     setOnlyBugs(false);
     setAboveAverage(false);
+    setOnlyOpenVersions(false);
+    setOnlyClosedVersions(true); // Voltar ao padrão
   };
 
   if (loading) {
@@ -315,6 +428,16 @@ export default function OperationalDetail() {
             <div className="flex flex-col gap-3 justify-center">
               <div className="flex items-center gap-2">
                 <Checkbox
+                  id="closedVersions"
+                  checked={onlyClosedVersions}
+                  onCheckedChange={checked => setOnlyClosedVersions(checked as boolean)}
+                />
+                <Label htmlFor="closedVersions" className="text-sm cursor-pointer">
+                  Apenas Fechadas
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
                   id="onlyBugs"
                   checked={onlyBugs}
                   onCheckedChange={checked => setOnlyBugs(checked as boolean)}
@@ -331,6 +454,16 @@ export default function OperationalDetail() {
                 />
                 <Label htmlFor="aboveAvg" className="text-sm cursor-pointer">
                   Acima da média ({avgLeadTime}d)
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="openVersions"
+                  checked={onlyOpenVersions}
+                  onCheckedChange={checked => setOnlyOpenVersions(checked as boolean)}
+                />
+                <Label htmlFor="openVersions" className="text-sm cursor-pointer">
+                  Em Aberto {openVersionsList.length > 0 && `(${openVersionsList.length})`}
                 </Label>
               </div>
             </div>
@@ -425,6 +558,7 @@ export default function OperationalDetail() {
                   paginatedIssues.map(issue => {
                     const isBug = issue.issue_type === 'Bug';
                     const isHighLeadTime = issue.lead_time_days && issue.lead_time_days > p90LeadTime;
+                    const isOpenVersion = issue.fix_version && openVersionsList.includes(issue.fix_version);
 
                     return (
                       <TableRow
@@ -446,7 +580,23 @@ export default function OperationalDetail() {
                           </Badge>
                         </TableCell>
                         <TableCell>{issue.system || '-'}</TableCell>
-                        <TableCell>{issue.fix_version || '-'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span>{issue.fix_version || '-'}</span>
+                            {isOpenVersion && (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge variant="outline" className="text-xs border-blue-500 text-blue-500">
+                                    Em Aberto
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Versão sem descrição (em andamento)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{formatDate(issue.created_date)}</TableCell>
                         <TableCell>{formatDate(issue.resolved_date)}</TableCell>
                         <TableCell className="text-right">

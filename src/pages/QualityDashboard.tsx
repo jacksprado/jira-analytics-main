@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { useFilters } from '@/contexts/FilterContext';
+import { getOpenVersionsAndFilterIssues } from '@/lib/version-utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Bug, Sparkles, Percent, AlertTriangle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -111,7 +112,10 @@ export default function QualityDashboard() {
         return;
       }
 
-      if (!issues || issues.length === 0) {
+      // Filtrar versões em aberto
+      const { filteredIssues } = await getOpenVersionsAndFilterIssues(issues || []);
+
+      if (!filteredIssues || filteredIssues.length === 0) {
         setKpis({ totalBugs: 0, totalFeatures: 0, bugPercentage: 0 });
         setDistributionData([]);
         setSystemBugData([]);
@@ -121,12 +125,12 @@ export default function QualityDashboard() {
       }
 
       // Calculate KPIs
-      const bugs = issues.filter(i => i.issue_type === 'Bug');
-      const features = issues.filter(i => i.issue_type !== 'Bug');
+      const bugs = filteredIssues.filter(i => i.issue_type === 'Bug');
+      const features = filteredIssues.filter(i => i.issue_type !== 'Bug');
       const totalBugs = bugs.length;
       const totalFeatures = features.length;
-      const bugPercentage = issues.length > 0 
-        ? Math.round((totalBugs / issues.length) * 100) 
+      const bugPercentage = filteredIssues.length > 0 
+        ? Math.round((totalBugs / filteredIssues.length) * 100) 
         : 0;
 
       setKpis({ totalBugs, totalFeatures, bugPercentage });

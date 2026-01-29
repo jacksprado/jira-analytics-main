@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { useFilters } from '@/contexts/FilterContext';
+import { getOpenVersionsAndFilterIssues } from '@/lib/version-utils';
 import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, Calendar, BarChart3, Award } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -121,7 +122,10 @@ export default function ProductivityDashboard() {
         return;
       }
 
-      if (!issues || issues.length === 0) {
+      // Filtrar versões em aberto
+      const { filteredIssues } = await getOpenVersionsAndFilterIssues(issues || []);
+
+      if (!filteredIssues || filteredIssues.length === 0) {
         setKpis({ totalDelivered: 0, monthlyAverage: 0, peakMonth: '-', peakMonthCount: 0 });
         setMonthlyData([]);
         setSystemData([]);
@@ -137,7 +141,7 @@ export default function ProductivityDashboard() {
       const typeMonthlyMap = new Map<string, Map<string, number>>();
       const uniqueTypes = new Set<string>();
 
-      issues.forEach((issue) => {
+      filteredIssues.forEach((issue) => {
         // Use resolved_date (delivery date) for monthly aggregation
         if (issue.resolved_date) {
           const monthKey = format(parseISO(issue.resolved_date), 'yyyy-MM');

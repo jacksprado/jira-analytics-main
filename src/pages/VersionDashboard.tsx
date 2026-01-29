@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, FileSpreadsheet, BarChart3, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -23,12 +24,20 @@ interface VersionData {
   lastResolved: string | null;
   durationDays: number;
   description: string | null;
+  isOpen: boolean;
 }
 
 interface KPIData {
   totalVersions: number;
   totalStories: number;
   avgDurationDays: number;
+}
+
+interface SeparatedVersionData {
+  closed: VersionData[];
+  open: VersionData[];
+  closedKpis: KPIData;
+  openKpis: KPIData;
 }
 
 const CHART_COLORS = [
@@ -44,12 +53,15 @@ type SortDirection = 'asc' | 'desc';
 
 export default function VersionDashboard() {
   const { filters } = useFilters();
-  const [versions, setVersions] = useState<VersionData[]>([]);
-  const [kpis, setKpis] = useState<KPIData>({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
+  const [closedVersions, setClosedVersions] = useState<VersionData[]>([]);
+  const [openVersions, setOpenVersions] = useState<VersionData[]>([]);
+  const [closedKpis, setClosedKpis] = useState<KPIData>({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
+  const [openKpis, setOpenKpis] = useState<KPIData>({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
   const [loading, setLoading] = useState(true);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('totalStories');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [activeTab, setActiveTab] = useState<'closed' | 'open'>('closed');
 
   useEffect(() => {
     async function fetchVersionData() {
@@ -90,8 +102,10 @@ export default function VersionDashboard() {
         if (error) throw error;
 
         if (!issues || issues.length === 0) {
-          setVersions([]);
-          setKpis({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
+          setClosedVersions([]);
+          setOpenVersions([]);
+          setClosedKpis({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
+          setOpenKpis({ totalVersions: 0, totalStories: 0, avgDurationDays: 0 });
           setLoading(false);
           return;
         }
@@ -135,6 +149,10 @@ export default function VersionDashboard() {
             durationDays = differenceInDays(parseISO(lastResolved), parseISO(firstResolved)) + 1;
           }
 
+          const description = versionsMap.get(version) || null;
+          // Versão em aberto: SEM descrição (null ou vazio)
+          const isOpen = !description || description.trim() === '';
+
           return {
             version,
             system: data.system,
@@ -144,20 +162,50 @@ export default function VersionDashboard() {
             firstResolved,
             lastResolved,
             durationDays,
-            description: versionsMap.get(version) || null,
+            description,
+            isOpen,
           };
         });
 
-        setVersions(versionData);
+        // Separate closed and open versions
+        const closedVersionsData = versionData.filter(v => !v.isOpen);
+        const openVersionsData = versionData.filter(v => v.isOpen);
 
-        // Calculate KPIs
-        const totalVersions = versionData.length;
-        const totalStories = versionData.reduce((sum, v) => sum + v.totalStories, 0);
-        const avgDurationDays = totalVersions > 0 
-          ? Math.round((versionData.reduce((sum, v) => sum + v.durationDays, 0) / totalVersions) * 10) / 10 
+        console.log('📊 Versões separadas:', {
+          fechadas: closedVersionsData.length,
+          abertas: openVersionsData.length,
+          issuesFechadas: closedVersionsData.reduce((sum, v) => sum + v.totalStories, 0),
+          issuesAbertas: openVersionsData.reduce((sum, v) => sum + v.totalStories, 0)
+        });
+
+        setClosedVersions(closedVersionsData);
+        setOpenVersions(openVersionsData);
+
+        // Calculate KPIs for closed versions
+        const closedTotalVersions = closedVersionsData.length;
+        const closedTotalStories = closedVersionsData.reduce((sum, v) => sum + v.totalStories, 0);
+        const closedAvgDurationDays = closedTotalVersions > 0 
+          ? Math.round((closedVersionsData.reduce((sum, v) => sum + v.durationDays, 0) / closedTotalVersions) * 10) / 10 
           : 0;
 
-        setKpis({ totalVersions, totalStories, avgDurationDays });
+        setClosedKpis({ 
+          totalVersions: closedTotalVersions, 
+          totalStories: closedTotalStories, 
+          avgDurationDays: closedAvgDurationDays 
+        });
+
+        // Calculate KPIs for open versions
+        const openTotalVersions = openVersionsData.length;
+        const openTotalStories = openVersionsData.reduce((sum, v) => sum + v.totalStories, 0);
+        const openAvgDurationDays = openTotalVersions > 0 
+          ? Math.round((openVersionsData.reduce((sum, v) => sum + v.durationDays, 0) / openTotalVersions) * 10) / 10 
+          : 0;
+
+        setOpenKpis({ 
+          totalVersions: openTotalVersions, 
+          totalStories: openTotalStories, 
+          avgDurationDays: openAvgDurationDays 
+        });
 
       } catch (error) {
         console.error('Error fetching version data:', error);
@@ -169,9 +217,13 @@ export default function VersionDashboard() {
     fetchVersionData();
   }, [filters]);
 
+  // Get current versions based on active tab
+  const currentVersions = activeTab === 'closed' ? closedVersions : openVersions;
+  const currentKpis = activeTab === 'closed' ? closedKpis : openKpis;
+
   // Sorted versions for table
   const sortedVersions = useMemo(() => {
-    return [...versions].sort((a, b) => {
+    return [...currentVersions].sort((a, b) => {
       const aValue = a[sortField];
       const bValue = b[sortField];
       
@@ -187,11 +239,11 @@ export default function VersionDashboard() {
       
       return 0;
     });
-  }, [versions, sortField, sortDirection]);
+  }, [currentVersions, sortField, sortDirection]);
 
   // Chart data
   const barChartData = useMemo(() => {
-    return [...versions]
+    return [...currentVersions]
       .sort((a, b) => b.totalStories - a.totalStories)
       .slice(0, 15)
       .map(v => ({
@@ -200,17 +252,17 @@ export default function VersionDashboard() {
         count: v.totalStories,
         description: v.description,
       }));
-  }, [versions]);
+  }, [currentVersions]);
 
   const scatterData = useMemo(() => {
-    return versions.map(v => ({
+    return currentVersions.map(v => ({
       version: v.version,
       description: v.description,
       duration: v.durationDays,
       stories: v.totalStories,
       z: v.totalStories,
     }));
-  }, [versions]);
+  }, [currentVersions]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -226,24 +278,28 @@ export default function VersionDashboard() {
     return format(parseISO(dateStr), 'dd/MM/yyyy', { locale: ptBR });
   };
 
-  const hasData = versions.length > 0;
+  const hasClosedData = closedVersions.length > 0;
+  const hasOpenData = openVersions.length > 0;
+  const hasData = hasClosedData || hasOpenData;
 
   const stats = [
     {
       title: 'Total de Versões',
-      value: hasData ? kpis.totalVersions.toLocaleString('pt-BR') : '—',
-      description: hasData ? 'Versões no filtro atual' : 'Aguardando dados',
+      value: hasData ? currentKpis.totalVersions.toLocaleString('pt-BR') : '—',
+      description: hasData 
+        ? `Versões ${activeTab === 'closed' ? 'fechadas' : 'em aberto'}` 
+        : 'Aguardando dados',
       icon: Layers,
     },
     {
       title: 'Total de Histórias',
-      value: hasData ? kpis.totalStories.toLocaleString('pt-BR') : '—',
+      value: hasData ? currentKpis.totalStories.toLocaleString('pt-BR') : '—',
       description: hasData ? 'Issues resolvidas' : 'Aguardando dados',
       icon: FileSpreadsheet,
     },
     {
       title: 'Tempo Médio de Entrega',
-      value: hasData ? `${kpis.avgDurationDays.toLocaleString('pt-BR')} dias` : '—',
+      value: hasData ? `${currentKpis.avgDurationDays.toLocaleString('pt-BR')} dias` : '—',
       description: hasData ? 'Por versão' : 'Aguardando dados',
       icon: Clock,
     },
@@ -294,6 +350,19 @@ export default function VersionDashboard() {
       {/* Filters */}
       <DashboardFilters />
 
+      {hasData && (
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'closed' | 'open')} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="closed">
+              Versões Fechadas ({closedVersions.length})
+            </TabsTrigger>
+            <TabsTrigger value="open">
+              Versões em Aberto ({openVersions.length})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
+
       {/* KPI Cards */}
       <div className="grid gap-6 sm:grid-cols-3">
         {stats.map((stat) => (
@@ -312,14 +381,14 @@ export default function VersionDashboard() {
         ))}
       </div>
 
-      {hasData ? (
+      {currentVersions.length > 0 ? (
         <>
           {/* Versions Table */}
           <Card className="executive-card-elevated">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-primary" />
-                Tabela de Versões
+                Tabela de Versões {activeTab === 'closed' ? 'Fechadas' : 'em Aberto'}
               </CardTitle>
               <CardDescription>
                 Detalhamento por versão — clique nos cabeçalhos para ordenar
@@ -508,6 +577,24 @@ export default function VersionDashboard() {
           </div>
         </>
       ) : (
+        hasData && (
+          <Card className="executive-card-elevated">
+            <CardContent className="py-12">
+              <div className="text-center">
+                <Layers className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-1">
+                  Nenhuma versão {activeTab === 'closed' ? 'fechada' : 'em aberto'} encontrada
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tente visualizar a outra aba ou ajuste os filtros
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      )}
+
+      {!hasData && (
         <Card className="executive-card-elevated">
           <CardContent className="py-12">
             <div className="text-center">

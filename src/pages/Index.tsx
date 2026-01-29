@@ -8,6 +8,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters';
 import { useFilters } from '@/contexts/FilterContext';
+import { getOpenVersionsAndFilterIssues } from '@/lib/version-utils';
 import { DashboardSkeleton, KPICardSkeleton, ChartSkeleton } from '@/components/dashboard/DashboardSkeletons';
 import { NoDataEmptyState } from '@/components/dashboard/EmptyStates';
 
@@ -96,7 +97,10 @@ export default function Index() {
 
         if (error) throw error;
 
-        if (!issues || issues.length === 0) {
+        // Filtrar versões em aberto
+        const { filteredIssues } = await getOpenVersionsAndFilterIssues(issues || []);
+
+        if (!filteredIssues || filteredIssues.length === 0) {
           setKpis({
             totalDelivered: 0,
             totalBugs: 0,
@@ -114,9 +118,9 @@ export default function Index() {
         }
 
         // Calculate KPIs
-        const totalDelivered = issues.length;
+        const totalDelivered = filteredIssues.length;
         
-        const totalBugs = issues.filter(i => i.issue_type?.toLowerCase() === 'bug').length;
+        const totalBugs = filteredIssues.filter(i => i.issue_type?.toLowerCase() === 'bug').length;
         const bugPercentage = totalDelivered > 0 
           ? Math.round((totalBugs / totalDelivered) * 100)
           : 0;
@@ -151,7 +155,7 @@ export default function Index() {
 
         // Calculate monthly data using resolved_date (delivery date)
         const monthlyMap = new Map<string, number>();
-        issues.forEach(issue => {
+        filteredIssues.forEach(issue => {
           if (issue.resolved_date) {
             const monthKey = issue.resolved_date.substring(0, 7);
             monthlyMap.set(monthKey, (monthlyMap.get(monthKey) || 0) + 1);
