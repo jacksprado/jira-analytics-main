@@ -23,6 +23,7 @@ interface VersionData {
   bugPercentage: number;
   firstResolved: string | null;
   lastResolved: string | null;
+  firstCreated: string | null;
   durationDays: number;
   description: string | null;
   isOpen: boolean;
@@ -118,7 +119,8 @@ export default function VersionDashboard() {
           system: string;
           stories: number;
           bugs: number;
-          dates: Array<{date: string; issueKey: string}>;
+          resolvedDates: Array<{date: string; issueKey: string}>;
+          createdDates: Array<{date: string; issueKey: string}>;
         }>();
 
         issues.forEach(issue => {
@@ -127,7 +129,8 @@ export default function VersionDashboard() {
             system: issue.system || 'Não definido',
             stories: 0,
             bugs: 0,
-            dates: [],
+            resolvedDates: [],
+            createdDates: [],
           };
 
           existing.stories++;
@@ -135,8 +138,14 @@ export default function VersionDashboard() {
             existing.bugs++;
           }
           if (issue.resolved_date) {
-            existing.dates.push({
+            existing.resolvedDates.push({
               date: issue.resolved_date,
+              issueKey: issue.issue_key
+            });
+          }
+          if (issue.created_date) {
+            existing.createdDates.push({
+              date: issue.created_date,
               issueKey: issue.issue_key
             });
           }
@@ -146,15 +155,19 @@ export default function VersionDashboard() {
 
         // Calculate version metrics
         const versionData: VersionData[] = Array.from(versionMap.entries()).map(([version, data]) => {
-          const sortedDates = data.dates.sort((a, b) => a.date.localeCompare(b.date));
-          const firstResolved = sortedDates[0]?.date || null;
-          const lastResolved = sortedDates[sortedDates.length - 1]?.date || null;
-          const firstIssueKey = sortedDates[0]?.issueKey;
-          const lastIssueKey = sortedDates[sortedDates.length - 1]?.issueKey;
+          const sortedResolvedDates = data.resolvedDates.sort((a, b) => a.date.localeCompare(b.date));
+          const sortedCreatedDates = data.createdDates.sort((a, b) => a.date.localeCompare(b.date));
+          
+          const firstCreated = sortedCreatedDates[0]?.date || null;
+          const firstResolved = sortedResolvedDates[0]?.date || null;
+          const lastResolved = sortedResolvedDates[sortedResolvedDates.length - 1]?.date || null;
+          
+          const firstIssueKey = sortedCreatedDates[0]?.issueKey;
+          const lastIssueKey = sortedResolvedDates[sortedResolvedDates.length - 1]?.issueKey;
           
           let durationDays = 0;
-          if (firstResolved && lastResolved) {
-            durationDays = differenceInDays(parseISO(lastResolved), parseISO(firstResolved)) + 1;
+          if (firstCreated && lastResolved) {
+            durationDays = differenceInDays(parseISO(lastResolved), parseISO(firstCreated)) + 1;
           }
 
           const description = versionsMap.get(version) || null;
@@ -169,6 +182,7 @@ export default function VersionDashboard() {
             bugPercentage: data.stories > 0 ? Math.round((data.bugs / data.stories) * 100) : 0,
             firstResolved,
             lastResolved,
+            firstCreated,
             durationDays,
             description,
             isOpen,
@@ -443,8 +457,8 @@ export default function VersionDashboard() {
                                 {version.firstIssueKey}
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="font-semibold">Primeira issue resolvida</p>
-                                <p className="text-xs">{formatDate(version.firstResolved)}</p>
+                                <p className="font-semibold">Primeira issue criada</p>
+                                <p className="text-xs">{formatDate(version.firstCreated)}</p>
                               </TooltipContent>
                             </Tooltip>
                           ) : '—'}
