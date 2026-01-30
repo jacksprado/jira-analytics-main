@@ -4,6 +4,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { BarChart, Bar, XAxis, YAxis, ScatterChart, Scatter, ZAxis, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Layers, FileSpreadsheet, BarChart3, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, differenceInDays } from 'date-fns';
@@ -25,6 +26,8 @@ interface VersionData {
   durationDays: number;
   description: string | null;
   isOpen: boolean;
+  firstIssueKey?: string;
+  lastIssueKey?: string;
 }
 
 interface KPIData {
@@ -115,7 +118,7 @@ export default function VersionDashboard() {
           system: string;
           stories: number;
           bugs: number;
-          dates: string[];
+          dates: Array<{date: string; issueKey: string}>;
         }>();
 
         issues.forEach(issue => {
@@ -132,7 +135,10 @@ export default function VersionDashboard() {
             existing.bugs++;
           }
           if (issue.resolved_date) {
-            existing.dates.push(issue.resolved_date);
+            existing.dates.push({
+              date: issue.resolved_date,
+              issueKey: issue.issue_key
+            });
           }
 
           versionMap.set(version, existing);
@@ -140,9 +146,11 @@ export default function VersionDashboard() {
 
         // Calculate version metrics
         const versionData: VersionData[] = Array.from(versionMap.entries()).map(([version, data]) => {
-          const sortedDates = data.dates.sort();
-          const firstResolved = sortedDates[0] || null;
-          const lastResolved = sortedDates[sortedDates.length - 1] || null;
+          const sortedDates = data.dates.sort((a, b) => a.date.localeCompare(b.date));
+          const firstResolved = sortedDates[0]?.date || null;
+          const lastResolved = sortedDates[sortedDates.length - 1]?.date || null;
+          const firstIssueKey = sortedDates[0]?.issueKey;
+          const lastIssueKey = sortedDates[sortedDates.length - 1]?.issueKey;
           
           let durationDays = 0;
           if (firstResolved && lastResolved) {
@@ -164,6 +172,8 @@ export default function VersionDashboard() {
             durationDays,
             description,
             isOpen,
+            firstIssueKey,
+            lastIssueKey,
           };
         });
 
@@ -402,6 +412,8 @@ export default function VersionDashboard() {
                       <SortableHeader field="version">Versão</SortableHeader>
                       <SortableHeader field="system">Sistema</SortableHeader>
                       <TableHead>Descrição</TableHead>
+                      <TableHead>Primeira Issue</TableHead>
+                      <TableHead>Última Issue</TableHead>
                       <SortableHeader field="durationDays">Duração (dias)</SortableHeader>
                     </TableRow>
                   </TableHeader>
@@ -423,6 +435,32 @@ export default function VersionDashboard() {
                         <TableCell>{version.system}</TableCell>
                         <TableCell className="max-w-[300px] truncate text-sm text-muted-foreground">
                           {version.description || '—'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {version.firstIssueKey ? (
+                            <Tooltip>
+                              <TooltipTrigger className="text-blue-600 hover:underline cursor-help">
+                                {version.firstIssueKey}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="font-semibold">Primeira issue resolvida</p>
+                                <p className="text-xs">{formatDate(version.firstResolved)}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {version.lastIssueKey ? (
+                            <Tooltip>
+                              <TooltipTrigger className="text-blue-600 hover:underline cursor-help">
+                                {version.lastIssueKey}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="font-semibold">Última issue resolvida</p>
+                                <p className="text-xs">{formatDate(version.lastResolved)}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : '—'}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
                           {version.durationDays}

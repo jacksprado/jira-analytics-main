@@ -88,7 +88,7 @@ export default function OperationalDetail() {
           .from('issues')
           .select('id, issue_key, summary, issue_type, status, system, fix_version, created_date, resolved_date, lead_time_days');
 
-        // Apply global filters (EXCETO versão, pois queremos todas)
+        // Apply global filters
         if (filters.dateStart) {
           query = query.gte('resolved_date', format(filters.dateStart, 'yyyy-MM-dd'));
         }
@@ -97,6 +97,9 @@ export default function OperationalDetail() {
         }
         if (filters.system !== 'all') {
           query = query.eq('system', filters.system);
+        }
+        if (filters.version !== 'all') {
+          query = query.eq('fix_version', filters.version);
         }
         if (filters.issueType !== 'all') {
           query = query.eq('issue_type', filters.issueType);
